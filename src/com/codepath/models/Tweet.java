@@ -60,6 +60,7 @@ public class Tweet extends Model implements Serializable {
 		createdAt = jsonObject.getString("created_at"); // can be converted to
 														// date and formatted
 		user = new User(jsonObject.getJSONObject("user"));
+		user.save();
 		JSONArray hashtagsArray = jsonObject.getJSONObject("entities")
 				.getJSONArray("hashtags");
 		hashtags = "";

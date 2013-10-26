@@ -15,6 +15,7 @@ import android.view.MenuItem;
 
 import com.activeandroid.ActiveAndroid;
 import com.activeandroid.query.Delete;
+import com.activeandroid.query.Select;
 import com.codepath.models.Tweet;
 import com.loopj.android.http.JsonHttpResponseHandler;
 
@@ -29,6 +30,11 @@ public class TimeLineActivity extends Activity {
 	private TweetAdapter adapter;
 	private boolean initalLoad = true;
 	private boolean refreshing = false;
+	private EndlessScrollListener endlessScrollListener;
+
+	private void deleteAllTweets() {
+		new Delete().from(Tweet.class).execute();
+	}
 
 	private void loadTweets(final long maxId) {
 		RestClientApp.getRestClient().getHomeTimeline(maxId,
@@ -53,104 +59,28 @@ public class TimeLineActivity extends Activity {
 						// Log.d("DEBUG Success",arrayOfTweets.toString());
 						ArrayList<Tweet> tweets = Tweet
 								.fromJSONArray(arrayOfTweets);
-						newlyLoadedTweets(tweets);						
+						newlyLoadedTweets(tweets);
 					}
 				});
 	}
 
 	protected void newlyLoadedTweets(ArrayList<Tweet> tweets) {
-		if(refreshing){
+		if (refreshing) {
 			saveTweets(tweets);
 			adapter.clear();
 			adapter.addAll(tweets);
 			refreshing = false;
+			endlessScrollListener.resetScroll();
 			lvTimeline.onRefreshComplete();
-		} else if (initalLoad){
+		} else if (initalLoad) {
 			saveTweets(tweets);
+			adapter.clear();
+			endlessScrollListener.resetScroll();
 			adapter.addAll(tweets);
 			initalLoad = false;
 		} else {
-			adapter.addAll(tweets);	
-		}		
-	}
-
-	@Override
-	protected void onCreate(Bundle savedInstanceState) {
-		super.onCreate(savedInstanceState);
-		setContentView(R.layout.activity_time_line);
-
-		setupViews();
-		adapter = new TweetAdapter(getApplicationContext(), tweets);
-		lvTimeline.setAdapter(adapter);
-		EndlessScrollListener endlessScrollListener = new EndlessScrollListener() {
-
-			private Tweet findOldestTweet() {
-				if(adapter.isEmpty()){
-					return null;
-				}
-				return adapter.getItem(adapter.getCount() - 1);
-			}
-
-			@Override
-			public void onLoadMore(int page, int totalItemsCount) {
-				// TODO Auto-generated method stub
-				Tweet tweet = findOldestTweet();
-				long maxId = tweet == null ? -1 : tweet.getTwitterId();
-				loadTweets(maxId);
-
-			}
-		};
-		lvTimeline.setOnScrollListener(endlessScrollListener);
-		
-		lvTimeline.setOnRefreshListener(new OnRefreshListener() {
-            @Override
-            public void onRefresh() {
-                refreshTweets();
-            }
-        });
-
-		showSavedTweets();
-		loadTweets(-1);
-	}
-
-	protected void refreshTweets() {
-		refreshing = true;
-        loadTweets(-1);
-		
-	}
-
-	protected void saveTweets(ArrayList<Tweet> tweets) {
-		// deleteAllTweets()
-		ActiveAndroid.beginTransaction();
-		try {
-			for (Tweet tweet : tweets) {
-//				tweet.save();
-			}
-			ActiveAndroid.setTransactionSuccessful();
-		} finally {
-			ActiveAndroid.endTransaction();
+			adapter.addAll(tweets);
 		}
-	}
-
-	private void showSavedTweets() {
-		// tweets = new Select().from(Tweet.class).execute();
-		// adapter.addAll(tweets);
-	}
-
-	private void deleteAll() {
-		new Delete().from(Tweet.class).execute();
-	}
-
-	@Override
-	public boolean onCreateOptionsMenu(Menu menu) {
-		// Inflate the menu; this adds items to the action bar if it is present.
-		getMenuInflater().inflate(R.menu.time_line, menu);
-		return true;
-	}
-
-	public void onComposeTweet(MenuItem mi) {
-		Intent i = new Intent(this, ComposeActivity.class);
-		startActivityForResult(i, COMPOSE_REQUEST_CODE);
 	}
 
 	@Override
@@ -170,10 +100,84 @@ public class TimeLineActivity extends Activity {
 
 	}
 
+	public void onComposeTweet(MenuItem mi) {
+		Intent i = new Intent(this, ComposeActivity.class);
+		startActivityForResult(i, COMPOSE_REQUEST_CODE);
+	}
+
+	@Override
+	protected void onCreate(Bundle savedInstanceState) {
+		super.onCreate(savedInstanceState);
+		setContentView(R.layout.activity_time_line);
+
+		setupViews();
+		adapter = new TweetAdapter(getApplicationContext(), tweets);
+		lvTimeline.setAdapter(adapter);
+		endlessScrollListener = new EndlessScrollListener() {
+			private Tweet findOldestTweet() {
+				if (adapter.isEmpty()) {
+					return null;
+				}
+				return adapter.getItem(adapter.getCount() - 1);
+			}
+
+			@Override
+			public void onLoadMore(int page, int totalItemsCount) {
+				// TODO Auto-generated method stub
+				Tweet tweet = findOldestTweet();
+				long maxId = tweet == null ? -1 : tweet.getTwitterId();
+				loadTweets(maxId);
+
+			}
+		};
+		lvTimeline.setOnScrollListener(endlessScrollListener);
+
+		lvTimeline.setOnRefreshListener(new OnRefreshListener() {
+			@Override
+			public void onRefresh() {
+				refreshTweets();
+			}
+		});
+
+		showSavedTweets();
+		loadTweets(-1);
+	}
+
+	@Override
+	public boolean onCreateOptionsMenu(Menu menu) {
+		// Inflate the menu; this adds items to the action bar if it is present.
+		getMenuInflater().inflate(R.menu.time_line, menu);
+		return true;
+	}
+
+	protected void refreshTweets() {
+		refreshing = true;
+		loadTweets(-1);
+
+	}
+
+	protected void saveTweets(ArrayList<Tweet> tweets) {
+		deleteAllTweets();
+		ActiveAndroid.beginTransaction();
+		try {
+			for (Tweet tweet : tweets) {
+				tweet.save();
+			}
+			ActiveAndroid.setTransactionSuccessful();
+		} finally {
+			ActiveAndroid.endTransaction();
+		}
+	}
+
 	private void setupViews() {
 		lvTimeline = (PullToRefreshListView) findViewById(R.id.lvTimeline);
 		// adapter = new TweetAdapter(this, resource, objects)
 		// lvTimeline.setAdapter(adapter)
+	}
+
+	private void showSavedTweets() {
+		tweets = new Select().from(Tweet.class).execute();
+		adapter.addAll(tweets);
 	}
 
 }
